@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "RADAR Early Warning System"
+description = "A responsive academic risk monitoring dashboard for university staff to review student risk indicators, understand prediction factors, record interventions, and explore institutional reports."
+version = "1.0.0"
+id = "artifacts/radar-early-warning"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24494
+
+[services.development]
+run = "pnpm --filter @workspace/radar-early-warning run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/radar-early-warning", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/radar-early-warning/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24494"
+BASE_PATH = "/"
