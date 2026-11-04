@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: radar
+    description: RADAR support team operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /radar/access:
+    get:
+      operationId: getRadarAccess
+      tags: [radar]
+      summary: Verify support team access
+      responses:
+        "200":
+          description: The authenticated user's support role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RadarAccess"
+        "401":
+          description: Sign-in is required
+        "403":
+          description: The account is not authorized for RADAR
+  /radar/invitations:
+    get:
+      operationId: listRadarInvitations
+      tags: [radar]
+      summary: List pending support team invitations
+      responses:
+        "200":
+          description: Pending support invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RadarInvitation"
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support administrator access is required
+    post:
+      operationId: createRadarInvitation
+      tags: [radar]
+      summary: Invite a support team member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRadarInvitation"
+      responses:
+        "201":
+          description: Invitation sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RadarInvitation"
+        "400":
+          description: Invalid invitation request
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support administrator access is required
 components:
   schemas:
     HealthStatus:
@@ -33,4 +92,39 @@ components:
           type: string
       required:
         - status
+    CreateRadarInvitation:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    RadarInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [pending, accepted, revoked, expired]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - status
+        - createdAt
+    RadarAccess:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [support_admin, support_member]
+      required:
+        - role
 

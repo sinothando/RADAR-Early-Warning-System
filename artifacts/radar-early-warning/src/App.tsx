@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Route, Switch, Router as WouterRouter, useLocation, useRoute } from 'wouter';
+import { Redirect, Link, Route, Switch, useLocation } from 'wouter';
+import { useUser } from '@clerk/react';
+import {
+  AuthProviders, HomeRedirect, InvitationSignUpPage, RequireSupportAccess,
+  SignInPage, SupportAccountControls, SupportSidebarProfile, SupportTeamInvitations,
+} from './auth/Auth';
 import {
   Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, BookOpen,
   CalendarDays, Check, ChevronDown, CircleHelp, ClipboardList, Download, FileBarChart2,
   Filter, GraduationCap, LayoutDashboard, Menu, Search, Settings, ShieldCheck, SlidersHorizontal,
-  Sparkles, Users, X, Clock3, Plus, ExternalLink, TrendingUp, MessageSquareText, UserRound,
+  Sparkles, Users, X, Clock3, Plus, TrendingUp, MessageSquareText, UserRound,
 } from 'lucide-react';
 
 type Risk = 'High' | 'Medium' | 'Low';
@@ -34,7 +39,7 @@ const students: Student[] = [
   {id:'STU-24196',name:'Asanda Gcaba',faculty:'Applied Sciences',course:'Diploma in Marine Science',year:'1st year',risk:'Low',score:21,attendance:97,assessment:91,lms:87,residence:'Off campus',advisor:'N. Petersen',updated:'Fri, 12:34'},
 ];
 const nav = [
-  {label:'Overview', href:'/', icon:LayoutDashboard},
+  {label:'Overview', href:'/dashboard', icon:LayoutDashboard},
   {label:'Students', href:'/students', icon:Users},
   {label:'Interventions', href:'/interventions', icon:ClipboardList},
   {label:'Courses', href:'/courses', icon:BookOpen},
@@ -48,45 +53,41 @@ const getStoredInterventions = (): Intervention[] => {
 };
 
 function RiskBadge({risk}:{risk:Risk}) { return <span className={riskClass(risk)}>{risk} risk</span>; }
-function Brand() {
-  return <div className="brand"><div className="brand-mark"><Activity size={22}/></div><div><div className="brand-name">RADAR</div><div className="brand-sub">Student success insight</div></div></div>;
-}
 function Sidebar({path}:{path:string}) {
   return <aside className="sidebar">
-    <Link href="/" className="brand"><div className="brand-mark"><Activity size={22}/></div><div><div className="brand-name">RADAR</div><div className="brand-sub">Student success insight</div></div></Link>
+    <Link href="/dashboard" className="brand"><div className="brand-mark"><Activity size={22}/></div><div><div className="brand-name">RADAR</div><div className="brand-sub">Student success insight</div></div></Link>
     <div className="nav-caption">Workspace</div>
     <nav className="nav-list" aria-label="Main navigation">
-      {nav.map(item => { const Icon=item.icon; const active=item.href==='/'?path==='/':path.startsWith(item.href); return <Link key={item.href} href={item.href} className={`nav-link ${active?'active':''}`}><Icon/><span>{item.label}</span></Link>; })}
+      {nav.map(item => { const Icon=item.icon; const active=path===item.href||path.startsWith(`${item.href}/`); return <Link key={item.href} href={item.href} className={`nav-link ${active?'active':''}`}><Icon/><span>{item.label}</span></Link>; })}
     </nav>
     <div className="nav-caption" style={{marginTop:18}}>Account</div>
     <nav className="nav-list">
       <Link href="/settings" className={`nav-link ${path==='/settings'?'active':''}`}><Settings/><span>Settings</span></Link>
-      <Link href="/login" className={`nav-link ${path==='/login'?'active':''}`}><UserRound/><span>Prototype access</span></Link>
     </nav>
     <div className="sidebar-foot">
       <div className="fiction-note"><ShieldCheck/><span>Fictional demo data only. RADAR is a prototype preview, not connected to any institution.</span></div>
-      <div className="staff-mini"><div className="avatar">NP</div><div><div className="staff-name">Nandi Petersen</div><div className="staff-role">Student success team</div></div></div>
+      <SupportSidebarProfile/>
     </div>
   </aside>;
 }
 function MobileNav({path}:{path:string}) {
   const items=[nav[0],nav[1],nav[2],nav[5]];
-  return <nav className="mobile-nav" aria-label="Mobile navigation">{items.map(item=>{const Icon=item.icon;const active=item.href==='/'?path==='/':path.startsWith(item.href);return <Link key={item.href} href={item.href} className={active?'active':''}><Icon/><span>{item.label}</span></Link>;})}</nav>;
+  return <nav className="mobile-nav" aria-label="Mobile navigation">{items.map(item=>{const Icon=item.icon;const active=path===item.href||path.startsWith(`${item.href}/`);return <Link key={item.href} href={item.href} className={active?'active':''}><Icon/><span>{item.label}</span></Link>;})}</nav>;
 }
 function AppShell({children}:{children:React.ReactNode}) {
   const [path,setPath]=useLocation(); const [mobileOpen,setMobileOpen]=useState(false);
   return <div className="app-shell"><Sidebar path={path}/><div className="main-area">
     <header className="topbar">
       <div className="crumb"><button className="icon-button mobile-toggle" aria-label="Open navigation" onClick={()=>setMobileOpen(!mobileOpen)}>{mobileOpen?<X size={18}/>:<Menu size={18}/>}</button><span>Academic support</span><span>/</span><strong>{pageTitle(path)}</strong></div>
-      <div className="top-actions"><span className="term-pill">2025 · Semester 1</span><button className="icon-button" title="Notifications" onClick={()=>setPath('/interventions')}><Bell size={17}/></button><div className="avatar">NP</div></div>
+      <div className="top-actions"><span className="term-pill">2025 · Semester 1</span><button className="icon-button" title="Notifications" aria-label="Open interventions" onClick={()=>setPath('/interventions')}><Bell size={17}/></button><SupportAccountControls/></div>
     </header>
     {mobileOpen&&<div className="mobile-drawer"><button className="icon-button" onClick={()=>setMobileOpen(false)} aria-label="Close menu"><X size={18}/></button>{nav.map(item=>{const Icon=item.icon;return <Link key={item.href} href={item.href} onClick={()=>setMobileOpen(false)} className="nav-link"><Icon/>{item.label}</Link>})}<Link href="/settings" className="nav-link" onClick={()=>setMobileOpen(false)}><Settings/>Settings</Link></div>}
     {children}<MobileNav path={path}/>
   </div></div>;
 }
 function pageTitle(path:string) {
-  if(path==='/') return 'Overview'; if(path.startsWith('/predictions')) return 'Risk explanation'; if(path.startsWith('/students/')) return 'Student profile';
-  return ({'/students':'Students','/interventions':'Interventions','/courses':'Courses','/faculty':'Faculty','/reports':'Reports','/settings':'Settings','/login':'Preview access'} as Record<string,string>)[path]||'RADAR';
+  if(path==='/dashboard') return 'Overview'; if(path.startsWith('/predictions')) return 'Risk explanation'; if(path.startsWith('/students/')) return 'Student profile';
+  return ({'/students':'Students','/interventions':'Interventions','/courses':'Courses','/faculty':'Faculty','/reports':'Reports','/settings':'Settings'} as Record<string,string>)[path]||'RADAR';
 }
 function PageHead({eyebrow,title,subtitle,actions}:{eyebrow:string;title:string;subtitle:string;actions?:React.ReactNode}) {
   return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p className="page-subtitle">{subtitle}</p></div>{actions&&<div className="actions">{actions}</div>}</div>;
@@ -121,7 +122,7 @@ function StudentTable({rows,compact=false}:{rows:Student[];compact?:boolean}) {
 function Dashboard() {
   const high=students.filter(s=>s.risk==='High').length;
   return <main className="page">
-    <PageHead eyebrow="Monday, 12 May 2025 · Semester 1" title="Good morning, Nandi" subtitle="A clear view of students who may benefit from an early check-in." actions={<><Link href="/students" className="btn"><Users/> Browse students</Link><Link href="/reports" className="btn btn-primary"><FileBarChart2/> View reports</Link></>}/>
+    <PageHead eyebrow="Monday, 12 May 2025 · Semester 1" title="Good morning, support team" subtitle="A clear view of students who may benefit from an early check-in." actions={<><Link href="/students" className="btn"><Users/> Browse students</Link><Link href="/reports" className="btn btn-primary"><FileBarChart2/> View reports</Link></>}/>
     <div className="notice" style={{marginBottom:16}}><ShieldCheck/><span><b>Fictional demo data</b> — illustrative student records and risk indicators only. This preview is not connected to CPUT or any institutional system, and does not provide live predictions.</span></div>
     <div className="stat-grid">
       <Stat label="Students in this demo" value="16" foot="First-year cohort · Semester 1" icon={Users}/>
@@ -228,26 +229,26 @@ function ReportsPage({notify}:{notify:(s:string)=>void}) {
   </main>;
 }
 function SettingsPage({notify}:{notify:(s:string)=>void}) {
-  const [name,setName]=useState(localStorage.getItem('radar-demo-name')||'Nandi Petersen');const [email,setEmail]=useState(localStorage.getItem('radar-demo-email')||'nandi.petersen@example.org');const [saved,setSaved]=useState(true);
-  const save=()=>{localStorage.setItem('radar-demo-name',name);localStorage.setItem('radar-demo-email',email);setSaved(true);notify('Demo preferences saved locally.');};
+  const {user}=useUser();
   const clear=()=>{if(window.confirm('Clear locally recorded intervention history for this demo?')){localStorage.removeItem('radar-demo-interventions');notify('Local intervention history cleared.');}};
+  const accountName=user?.fullName||'Support staff';
+  const accountEmail=user?.primaryEmailAddress?.emailAddress||'';
+  const accessRole=user?.publicMetadata?.radarRole==='support_admin'?'Support team administrator':'Support team member';
   return <main className="page"><PageHead eyebrow="Workspace preferences" title="Settings" subtitle="Manage this browser-based prototype's demo preferences."/>
     <div className="two-col"><div className="section-stack">
-      <section className="card"><div className="card-head"><div><h2 className="card-title">Demo profile</h2><div className="card-kicker">No account or authentication is configured</div></div><UserRound size={16} color="#729397"/></div><div className="card-content"><div className="form-grid"><div className="field"><label htmlFor="pref-name">Display name</label><input id="pref-name" value={name} onChange={e=>{setName(e.target.value);setSaved(false)}}/></div><div className="field"><label htmlFor="pref-email">Contact email</label><input id="pref-email" type="email" value={email} onChange={e=>{setEmail(e.target.value);setSaved(false)}}/></div></div><div className="form-actions"><span style={{marginRight:'auto',fontSize:10,color:'#829198',alignSelf:'center'}}>{saved?'Preferences saved':'Unsaved changes'}</span><button className="btn btn-primary" onClick={save}><Check/> Save preferences</button></div></div></section>
+      <section className="card"><div className="card-head"><div><h2 className="card-title">Signed-in account</h2><div className="card-kicker">Managed staff identity and access role</div></div><UserRound size={16} color="#729397"/></div><div className="detail-list" style={{gridTemplateColumns:'1fr'}}>{[['Name',accountName],['Email',accountEmail],['Role',accessRole],['Account creation','Invitation-only']].map(([label,value])=><div className="detail-item" key={label}><label>{label}</label><div>{value}</div></div>)}</div></section>
+      <SupportTeamInvitations/>
       <section className="card"><div className="card-head"><div><h2 className="card-title">Prototype data</h2><div className="card-kicker">Fictional sample data and local browser state</div></div><ShieldCheck size={16} color="#729397"/></div><div className="list-simple"><div className="list-entry"><div><div className="entry-title">Student cohort</div><div className="entry-sub">16 fixed sample records · read-only</div></div><span className="tag">Demo</span></div><div className="list-entry"><div><div className="entry-title">Intervention history</div><div className="entry-sub">{getStoredInterventions().length} actions stored in this browser</div></div><button className="btn" onClick={clear}>Clear local history</button></div></div></section>
     </div><div className="section-stack">
-      <section className="card"><div className="card-head"><h2 className="card-title">System information</h2><Settings size={16} color="#729397"/></div><div className="detail-list" style={{gridTemplateColumns:'1fr'}}>{[['Workspace','RADAR prototype preview'],['Academic context','South African tertiary education'],['Data connection','None'],['Model status','No live model'],['Version','Demo · 0.1']].map(([a,b])=><div className="detail-item" key={a}><label>{a}</label><div>{b}</div></div>)}</div></section>
-      <section className="card"><div className="card-head"><h2 className="card-title">Responsible use</h2><CircleHelp size={16} color="#729397"/></div><div className="card-content"><div className="note-box">RADAR is a preview interface only. All records are fictional. It does not authenticate users, connect to CPUT, or generate real machine-learning predictions. Any future use would require careful institutional governance, privacy review, and human oversight.</div></div></section>
+      <section className="card"><div className="card-head"><h2 className="card-title">System information</h2><Settings size={16} color="#729397"/></div><div className="detail-list" style={{gridTemplateColumns:'1fr'}}>{[['Workspace','RADAR prototype preview'],['Authentication','Clerk-managed staff sign-in'],['Support access','Invitation-only; verified by the API'],['Data connection','None'],['Model status','No live model'],['Version','Demo · 0.2']].map(([a,b])=><div className="detail-item" key={a}><label>{a}</label><div>{b}</div></div>)}</div></section>
+      <section className="card"><div className="card-head"><h2 className="card-title">Responsible use</h2><CircleHelp size={16} color="#729397"/></div><div className="card-content"><div className="note-box">This prototype authenticates staff and checks roles for its API, but the student examples are fixed fictional data bundled with the frontend. Do not add real student records until they are served from protected APIs with server-side access checks, institutional approval, and privacy review.</div></div></section>
     </div></div>
   </main>;
 }
-function LoginPage() {
-  return <div className="login-screen"><section className="login-card"><Brand/><div className="eyebrow">Preview access</div><h1>Welcome to the RADAR prototype</h1><p className="page-subtitle" style={{marginBottom:19}}>This is a non-authenticating design preview for exploring a student support workflow.</p><div className="notice"><ShieldCheck/><span>No credentials are requested or checked. The sample records are fictional and the preview is not connected to an institution or live model.</span></div><Link href="/" className="btn btn-primary" style={{marginTop:20,width:'100%',justifyContent:'center'}}>Enter the demo workspace <ArrowRight size={14}/></Link><div style={{marginTop:15,textAlign:'center'}}><Link href="/settings" className="row-link">About this prototype <ExternalLink size={12}/></Link></div></section></div>;
-}
-function NotFoundPage() { return <main className="page"><div className="card" style={{padding:35,textAlign:'center'}}><div className="eyebrow">Page not found</div><h1>We couldn't find that view.</h1><p className="page-subtitle" style={{marginBottom:18}}>Use the navigation to return to your workspace.</p><Link href="/" className="btn btn-primary">Back to overview <ArrowRight size={14}/></Link></div></main>; }
+function NotFoundPage() { return <main className="page"><div className="card" style={{padding:35,textAlign:'center'}}><div className="eyebrow">Page not found</div><h1>We couldn't find that view.</h1><p className="page-subtitle" style={{marginBottom:18}}>Use the navigation to return to your workspace.</p><Link href="/dashboard" className="btn btn-primary">Back to overview <ArrowRight size={14}/></Link></div></main>; }
 function RoutedPages({notify}:{notify:(s:string)=>void}) {
   return <Switch>
-    <Route path="/" component={Dashboard}/>
+    <Route path="/dashboard" component={Dashboard}/>
     <Route path="/students" component={StudentsPage}/>
     <Route path="/students/:studentId">{params=><StudentProfile id={params.studentId}/>}</Route>
     <Route path="/predictions/:studentId">{params=><PredictionPage id={params.studentId}/>}</Route>
@@ -256,16 +257,24 @@ function RoutedPages({notify}:{notify:(s:string)=>void}) {
     <Route path="/faculty" component={FacultyPage}/>
     <Route path="/reports"><ReportsPage notify={notify}/></Route>
     <Route path="/settings"><SettingsPage notify={notify}/></Route>
-    <Route path="/login" component={LoginPage}/>
     <Route component={NotFoundPage}/>
   </Switch>;
 }
 function Router() {
-  const [path]=useLocation();const [toast,setToast]=useState('');const [tick,setTick]=useState(0);
+  const [toast,setToast]=useState('');const [tick,setTick]=useState(0);
   const notify=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(''),3000);setTick(tick+1);};
-  const isLogin=path==='/login';
   return <>
-    {isLogin?<RoutedPages notify={notify}/>:<AppShell><RoutedPages notify={notify}/></AppShell>}
+    <Switch>
+      <Route path="/sign-in/*?" component={SignInPage}/>
+      <Route path="/sign-up/*?" component={InvitationSignUpPage}/>
+      <Route path="/login"><Redirect to="/sign-in"/></Route>
+      <Route path="/" component={HomeRedirect}/>
+      <Route>
+        <RequireSupportAccess>
+          <AppShell><RoutedPages notify={notify}/></AppShell>
+        </RequireSupportAccess>
+      </Route>
+    </Switch>
     {toast&&<div className="toast" role="status">{toast}</div>}
     <InterventionEvents notify={notify}/>
   </>;
@@ -276,7 +285,7 @@ function InterventionEvents({notify}:{notify:(s:string)=>void}) {
   return null;
 }
 function App() {
-  return <WouterRouter><Router/></WouterRouter>;
+  return <AuthProviders><Router/></AuthProviders>;
 }
 
 export default App;
