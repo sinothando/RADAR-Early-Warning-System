@@ -9,12 +9,159 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
+ * Checks both the API process and its PostgreSQL connection
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.enum(['ok']),
+  "database": zod.enum(['connected'])
 })
+
+
+/**
+ * @summary List student records
+ */
+export const ListStudentsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "studentNumber": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string().nullable(),
+  "age": zod.number().int().nullable(),
+  "faculty": zod.string().nullable(),
+  "programme": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStudentsResponse = zod.array(ListStudentsResponseItem)
+
+
+/**
+ * @summary Create a student record
+ */
+export const createStudentBodyStudentNumberMax = 50;
+
+export const createStudentBodyFirstNameMax = 100;
+
+export const createStudentBodyLastNameMax = 100;
+
+export const createStudentBodyEmailMax = 255;
+
+export const createStudentBodyAgeMin = 0;
+export const createStudentBodyAgeMax = 130;
+
+export const createStudentBodyFacultyMax = 150;
+
+export const createStudentBodyProgrammeMax = 150;
+
+
+
+export const CreateStudentBody = zod.object({
+  "studentNumber": zod.string().min(1).max(createStudentBodyStudentNumberMax),
+  "firstName": zod.string().min(1).max(createStudentBodyFirstNameMax),
+  "lastName": zod.string().min(1).max(createStudentBodyLastNameMax),
+  "email": zod.string().email().max(createStudentBodyEmailMax).nullish(),
+  "age": zod.number().int().min(createStudentBodyAgeMin).max(createStudentBodyAgeMax).nullish(),
+  "faculty": zod.string().max(createStudentBodyFacultyMax).nullish(),
+  "programme": zod.string().max(createStudentBodyProgrammeMax).nullish()
+})
+
+export const CreateStudentResponse = zod.object({
+  "id": zod.number().int(),
+  "studentNumber": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string().nullable(),
+  "age": zod.number().int().nullable(),
+  "faculty": zod.string().nullable(),
+  "programme": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get one student record
+ */
+
+
+
+export const GetStudentParams = zod.object({
+  "studentId": zod.coerce.number().int().min(1)
+})
+
+export const GetStudentResponse = zod.object({
+  "id": zod.number().int(),
+  "studentNumber": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string().nullable(),
+  "age": zod.number().int().nullable(),
+  "faculty": zod.string().nullable(),
+  "programme": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a student record
+ */
+
+
+
+export const UpdateStudentParams = zod.object({
+  "studentId": zod.coerce.number().int().min(1)
+})
+
+export const updateStudentBodyStudentNumberMax = 50;
+
+export const updateStudentBodyFirstNameMax = 100;
+
+export const updateStudentBodyLastNameMax = 100;
+
+export const updateStudentBodyEmailMax = 255;
+
+export const updateStudentBodyAgeMin = 0;
+export const updateStudentBodyAgeMax = 130;
+
+export const updateStudentBodyFacultyMax = 150;
+
+export const updateStudentBodyProgrammeMax = 150;
+
+
+
+export const UpdateStudentBody = zod.object({
+  "studentNumber": zod.string().min(1).max(updateStudentBodyStudentNumberMax).optional(),
+  "firstName": zod.string().min(1).max(updateStudentBodyFirstNameMax).optional(),
+  "lastName": zod.string().min(1).max(updateStudentBodyLastNameMax).optional(),
+  "email": zod.string().email().max(updateStudentBodyEmailMax).nullish(),
+  "age": zod.number().int().min(updateStudentBodyAgeMin).max(updateStudentBodyAgeMax).nullish(),
+  "faculty": zod.string().max(updateStudentBodyFacultyMax).nullish(),
+  "programme": zod.string().max(updateStudentBodyProgrammeMax).nullish()
+})
+
+export const UpdateStudentResponse = zod.object({
+  "id": zod.number().int(),
+  "studentNumber": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "email": zod.string().nullable(),
+  "age": zod.number().int().nullable(),
+  "faculty": zod.string().nullable(),
+  "programme": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a student record without linked history
+ */
+
+
+
+export const DeleteStudentParams = zod.object({
+  "studentId": zod.coerce.number().int().min(1)
+})
+
+export const DeleteStudentResponse = zod.void()
 
 
 /**

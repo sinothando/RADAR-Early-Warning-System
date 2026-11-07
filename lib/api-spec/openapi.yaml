@@ -12,13 +12,15 @@ tags:
     description: Health operations
   - name: radar
     description: RADAR support team operations
+  - name: students
+    description: Protected student record management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
+      description: Checks both the API process and its PostgreSQL connection
       responses:
         "200":
           description: Healthy
@@ -26,6 +28,126 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: PostgreSQL is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthError"
+  /students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: List student records
+      responses:
+        "200":
+          description: Student records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentRecord"
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+    post:
+      operationId: createStudent
+      tags: [students]
+      summary: Create a student record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentInput"
+      responses:
+        "201":
+          description: Student created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentRecord"
+        "400":
+          description: Invalid student data
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+        "409":
+          description: Student number already exists
+  /students/{studentId}:
+    parameters:
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      operationId: getStudent
+      tags: [students]
+      summary: Get one student record
+      responses:
+        "200":
+          description: Student record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentRecord"
+        "400":
+          description: Invalid student ID
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+        "404":
+          description: Student not found
+    patch:
+      operationId: updateStudent
+      tags: [students]
+      summary: Update a student record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentUpdate"
+      responses:
+        "200":
+          description: Student updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentRecord"
+        "400":
+          description: Invalid student data
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+        "404":
+          description: Student not found
+        "409":
+          description: Student number already exists
+    delete:
+      operationId: deleteStudent
+      tags: [students]
+      summary: Delete a student record without linked history
+      responses:
+        "204":
+          description: Student deleted
+        "400":
+          description: Invalid student ID
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+        "404":
+          description: Student not found
+        "409":
+          description: Linked academic or support history prevents deletion
   /radar/access:
     get:
       operationId: getRadarAccess
@@ -90,8 +212,120 @@ components:
       properties:
         status:
           type: string
+          enum: [ok]
+        database:
+          type: string
+          enum: [connected]
+      required: [status, database]
+    HealthError:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+        database:
+          type: string
+          enum: [disconnected]
+        message:
+          type: string
+      required: [status, database, message]
+    StudentRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentNumber:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: [string, "null"]
+        age:
+          type: [integer, "null"]
+        faculty:
+          type: [string, "null"]
+        programme:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
       required:
-        - status
+        - id
+        - studentNumber
+        - firstName
+        - lastName
+        - email
+        - age
+        - faculty
+        - programme
+        - createdAt
+    StudentInput:
+      type: object
+      properties:
+        studentNumber:
+          type: string
+          minLength: 1
+          maxLength: 50
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: [string, "null"]
+          format: email
+          maxLength: 255
+        age:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 130
+        faculty:
+          type: [string, "null"]
+          maxLength: 150
+        programme:
+          type: [string, "null"]
+          maxLength: 150
+      required: [studentNumber, firstName, lastName]
+    StudentUpdate:
+      type: object
+      properties:
+        studentNumber:
+          type: string
+          minLength: 1
+          maxLength: 50
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: [string, "null"]
+          format: email
+          maxLength: 255
+        age:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 130
+        faculty:
+          type: [string, "null"]
+          maxLength: 150
+        programme:
+          type: [string, "null"]
+          maxLength: 150
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
     CreateRadarInvitation:
       type: object
       properties:

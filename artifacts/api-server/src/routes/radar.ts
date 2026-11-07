@@ -1,40 +1,17 @@
-import {
-  clerkClient,
-  getAuth,
-} from "@clerk/express";
-import { Router, type IRouter, type Request, type Response } from "express";
+import { clerkClient } from "@clerk/express";
+import { Router, type IRouter } from "express";
 import {
   CreateRadarInvitationBody,
   GetRadarAccessResponse,
   ListRadarInvitationsResponse,
   CreateRadarInvitationResponse,
 } from "@workspace/api-zod";
-import { getClerkProxyHost } from "../middlewares/clerkProxyMiddleware";
+import {
+  rejectCrossOriginMutation,
+  requireRadarSupportRole,
+} from "../lib/radarAccess";
 
 const router: IRouter = Router();
-const supportRoles = new Set(["support_admin", "support_member"]);
-
-async function requireSupportRole(
-  req: Request,
-  res: Response,
-  allowedRoles: Set<string> = supportRoles,
-): Promise<"support_admin" | "support_member" | null> {
-  const userId = getAuth(req).userId;
-  if (!userId) {
-    res.status(401).json({ error: "Sign-in is required." });
-    return null;
-  }
-
-  const user = await clerkClient.users.getUser(userId);
-  const role = user.publicMetadata?.radarRole;
-  if (typeof role !== "string" || !allowedRoles.has(role)) {
-    res.status(403).json({ error: "Support team access is required." });
-    return null;
-  }
-
-  return role as "support_admin" | "support_member";
-}
-
 function invitationResponse(invitation: {
   id: string;
   emailAddress: string;
@@ -50,14 +27,16 @@ function invitationResponse(invitation: {
 }
 
 router.get("/radar/access", async (req, res): Promise<void> => {
-  const role = await requireSupportRole(req, res);
+  res.setHeader("Cache-Control", "no-store");
+  const role = await requireRadarSupportRole(req, res);
   if (!role) return;
 
   res.json(GetRadarAccessResponse.parse({ role }));
 });
 
 router.get("/radar/invitations", async (req, res): Promise<void> => {
-  const role = await requireSupportRole(req, res, new Set(["support_admin"]));
+  res.setHeader("Cache-Control", "no-store");
+  const role = await requireRadarSupportRole(req, res, ["support_admin"]);
   if (!role) return;
 
   const invitations = await clerkClient.invitations.getInvitationList({
@@ -76,29 +55,9 @@ router.get("/radar/invitations", async (req, res): Promise<void> => {
 });
 
 router.post("/radar/invitations", async (req, res): Promise<void> => {
-  const role = await requireSupportRole(req, res, new Set(["support_admin"]));
+  const role = await requireRadarSupportRole(req, res, ["support_admin"]);
   if (!role) return;
-
-  const origin = req.get("origin");
-  const requestHost = getClerkProxyHost(req);
-  if (origin) {
-    try {
-      if (
-        !requestHost ||
-        new URL(origin).host.toLowerCase() !== requestHost.toLowerCase()
-      ) {
-        res
-          .status(403)
-          .json({ error: "Cross-origin invitation requests are not allowed." });
-        return;
-      }
-    } catch {
-      res
-        .status(403)
-        .json({ error: "Cross-origin invitation requests are not allowed." });
-      return;
-    }
-  }
+  if (rejectCrossOriginMutation(req, res)) return;
 
   const parsed = CreateRadarInvitationBody.safeParse(req.body);
   if (!parsed.success) {

@@ -354,7 +354,7 @@ export function RequireSupportAccess({ children }: { children: ReactNode }) {
     let active = true;
     setStatus("loading");
 
-    getRadarAccess({ credentials: "include" })
+    getRadarAccess({ credentials: "include", cache: "no-store" })
       .then((access) => {
         if (active) {
           setStatus(
@@ -465,7 +465,7 @@ export function SupportTeamInvitations() {
     if (!isAdmin) return;
     let active = true;
     setLoading(true);
-    listRadarInvitations({ credentials: "include" })
+    listRadarInvitations({ credentials: "include", cache: "no-store" })
       .then((items) => {
         if (active) {
           setInvitations(items);

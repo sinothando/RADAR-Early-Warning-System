@@ -5,8 +5,141 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type HealthStatusStatus = typeof HealthStatusStatus[keyof typeof HealthStatusStatus];
+
+
+export const HealthStatusStatus = {
+  ok: 'ok',
+} as const;
+
+export type HealthStatusDatabase = typeof HealthStatusDatabase[keyof typeof HealthStatusDatabase];
+
+
+export const HealthStatusDatabase = {
+  connected: 'connected',
+} as const;
+
 export interface HealthStatus {
-  status: string;
+  status: HealthStatusStatus;
+  database: HealthStatusDatabase;
+}
+
+export type HealthErrorStatus = typeof HealthErrorStatus[keyof typeof HealthErrorStatus];
+
+
+export const HealthErrorStatus = {
+  error: 'error',
+} as const;
+
+export type HealthErrorDatabase = typeof HealthErrorDatabase[keyof typeof HealthErrorDatabase];
+
+
+export const HealthErrorDatabase = {
+  disconnected: 'disconnected',
+} as const;
+
+export interface HealthError {
+  status: HealthErrorStatus;
+  database: HealthErrorDatabase;
+  message: string;
+}
+
+export interface StudentRecord {
+  id: number;
+  studentNumber: string;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  age: number | null;
+  /** @nullable */
+  faculty: string | null;
+  /** @nullable */
+  programme: string | null;
+  createdAt: string;
+}
+
+export interface StudentInput {
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  studentNumber: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  firstName: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  lastName: string;
+  /**
+     * @maxLength 255
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 130
+     * @nullable
+     */
+  age?: number | null;
+  /**
+     * @maxLength 150
+     * @nullable
+     */
+  faculty?: string | null;
+  /**
+     * @maxLength 150
+     * @nullable
+     */
+  programme?: string | null;
+}
+
+export interface StudentUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  studentNumber?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  firstName?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  lastName?: string;
+  /**
+     * @maxLength 255
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 130
+     * @nullable
+     */
+  age?: number | null;
+  /**
+     * @maxLength 150
+     * @nullable
+     */
+  faculty?: string | null;
+  /**
+     * @maxLength 150
+     * @nullable
+     */
+  programme?: string | null;
+}
+
+export interface ErrorResponse {
+  error: string;
 }
 
 export interface CreateRadarInvitation {

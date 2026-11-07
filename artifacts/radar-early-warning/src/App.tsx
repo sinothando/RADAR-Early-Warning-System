@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Redirect, Link, Route, Switch, useLocation } from 'wouter';
 import { useUser } from '@clerk/react';
+import { createStudent, deleteStudent, listStudents, updateStudent } from '@workspace/api-client-react';
 import {
   AuthProviders, HomeRedirect, InvitationSignUpPage, RequireSupportAccess,
   SignInPage, SupportAccountControls, SupportSidebarProfile, SupportTeamInvitations,
@@ -13,12 +14,25 @@ import {
 } from 'lucide-react';
 
 type Risk = 'High' | 'Medium' | 'Low';
+type StudentRecord = Awaited<ReturnType<typeof listStudents>>[number];
 type Student = {
   id: string; name: string; faculty: string; course: string; year: string;
   risk: Risk; score: number; attendance: number; assessment: number; lms: number;
   residence: string; advisor: string; updated: string;
 };
 type Intervention = { id: string; studentId: string; studentName: string; type: string; date: string; owner: string; notes: string; status: string };
+type StudentForm = {
+  studentNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  age: string;
+  faculty: string;
+  programme: string;
+};
+const emptyStudentForm: StudentForm = {
+  studentNumber: '', firstName: '', lastName: '', email: '', age: '', faculty: '', programme: '',
+};
 
 const students: Student[] = [
   {id:'STU-24018',name:'Amahle Mthembu',faculty:'Applied Sciences',course:'Diploma in Analytical Chemistry',year:'1st year',risk:'High',score:87,attendance:58,assessment:42,lms:31,residence:'On campus',advisor:'N. Petersen',updated:'Today, 09:42'},
@@ -53,6 +67,18 @@ const getStoredInterventions = (): Intervention[] => {
 };
 
 function RiskBadge({risk}:{risk:Risk}) { return <span className={riskClass(risk)}>{risk} risk</span>; }
+function studentErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'data' in error) {
+    const data = (error as {data?: unknown}).data;
+    if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') {
+      return data.error;
+    }
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+function sortStudentRecords(records: StudentRecord[]): StudentRecord[] {
+  return [...records].sort((a,b)=>a.lastName.localeCompare(b.lastName)||a.firstName.localeCompare(b.firstName)||a.id-b.id);
+}
 function Sidebar({path}:{path:string}) {
   return <aside className="sidebar">
     <Link href="/dashboard" className="brand"><div className="brand-mark"><Activity size={22}/></div><div><div className="brand-name">RADAR</div><div className="brand-sub">Student success insight</div></div></Link>
@@ -146,12 +172,153 @@ function Dashboard() {
   </main>;
 }
 function StudentsPage() {
-  const [query,setQuery]=useState('');const [risk,setRisk]=useState('All');const [faculty,setFaculty]=useState('All');
-  const filtered=useMemo(()=>students.filter(s=>(risk==='All'||s.risk===risk)&&(faculty==='All'||s.faculty===faculty)&&`${s.name} ${s.id} ${s.course} ${s.faculty}`.toLowerCase().includes(query.toLowerCase())),[query,risk,faculty]);
-  const facultyNames=[...new Set(students.map(s=>s.faculty))];
-  return <main className="page"><PageHead eyebrow="Student support workspace" title="Students" subtitle="Search and review fictional first-year student records." actions={<button className="btn btn-primary" onClick={()=>window.alert('Demo records are fixed for this preview. No student data is added.') }><Plus/> Add student</button>}/>
-    <div className="notice" style={{marginBottom:16}}><ShieldCheck/><span>Sample dataset is <b>fictional demo data</b>. Student records are illustrative and not linked to a real institution.</span></div>
-    <section className="card table-card"><div className="table-toolbar"><div className="table-tools"><label className="searchbox"><Search size={15}/><input aria-label="Search students" placeholder="Search name, ID, course…" value={query} onChange={e=>setQuery(e.target.value)}/></label><select className="select" aria-label="Filter by risk" value={risk} onChange={e=>setRisk(e.target.value)}><option>All</option><option>High</option><option>Medium</option><option>Low</option></select><select className="select" aria-label="Filter by faculty" value={faculty} onChange={e=>setFaculty(e.target.value)}><option>All</option>{facultyNames.map(n=><option key={n}>{n}</option>)}</select></div><span style={{fontSize:10,color:'#809097'}}>{filtered.length} records</span></div><StudentTable rows={filtered}/></section>
+  const [records,setRecords]=useState<StudentRecord[]>([]);
+  const [query,setQuery]=useState('');
+  const [faculty,setFaculty]=useState('All');
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState('');
+  const [editorOpen,setEditorOpen]=useState(false);
+  const [editingRecord,setEditingRecord]=useState<StudentRecord|null>(null);
+  const [form,setForm]=useState<StudentForm>(emptyStudentForm);
+  const [formError,setFormError]=useState('');
+  const [saving,setSaving]=useState(false);
+  const [deletingId,setDeletingId]=useState<number|null>(null);
+
+  const loadStudents=useCallback(async(showLoading=true)=>{
+    if(showLoading)setLoading(true);
+    try {
+      const result=await listStudents({credentials:'include',cache:'no-store'});
+      setRecords(sortStudentRecords(result));
+      setLoadError('');
+    } catch(error) {
+      setLoadError(studentErrorMessage(error,'Unable to load student records.'));
+    } finally {
+      if(showLoading)setLoading(false);
+    }
+  },[]);
+
+  useEffect(()=>{void loadStudents();},[loadStudents]);
+  useEffect(()=>{
+    const onFocus=()=>{void loadStudents(false);};
+    window.addEventListener('focus',onFocus);
+    return ()=>window.removeEventListener('focus',onFocus);
+  },[loadStudents]);
+
+  const facultyNames=[...new Set(records.map(record=>record.faculty).filter((value):value is string=>Boolean(value)))].sort();
+  const filtered=useMemo(()=>records.filter(record=>
+    (faculty==='All'||record.faculty===faculty)&&
+    `${record.firstName} ${record.lastName} ${record.studentNumber} ${record.email||''} ${record.programme||''} ${record.faculty||''}`.toLowerCase().includes(query.toLowerCase())
+  ),[records,query,faculty]);
+
+  const openCreate=()=>{setEditingRecord(null);setForm(emptyStudentForm);setFormError('');setEditorOpen(true);};
+  const openEdit=(record:StudentRecord)=>{
+    setEditingRecord(record);
+    setForm({
+      studentNumber:record.studentNumber,
+      firstName:record.firstName,
+      lastName:record.lastName,
+      email:record.email||'',
+      age:record.age===null?'':String(record.age),
+      faculty:record.faculty||'',
+      programme:record.programme||'',
+    });
+    setFormError('');
+    setEditorOpen(true);
+  };
+  const closeEditor=()=>{if(!saving){setEditorOpen(false);setEditingRecord(null);setFormError('');}};
+  const handleSave=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    setFormError('');
+    const age=form.age.trim()===''?null:Number(form.age);
+    if(age!==null&&(!Number.isInteger(age)||age<0||age>130)){
+      setFormError('Enter a whole-number age between 0 and 130.');
+      return;
+    }
+    const data={
+      studentNumber:form.studentNumber.trim(),
+      firstName:form.firstName.trim(),
+      lastName:form.lastName.trim(),
+      email:form.email.trim()||null,
+      age,
+      faculty:form.faculty.trim()||null,
+      programme:form.programme.trim()||null,
+    };
+    setSaving(true);
+    try {
+      const saved=editingRecord
+        ? await updateStudent(editingRecord.id,data,{credentials:'include'})
+        : await createStudent(data,{credentials:'include'});
+      setRecords(current=>sortStudentRecords(editingRecord
+        ? current.map(record=>record.id===saved.id?saved:record)
+        : [...current,saved]));
+      setEditorOpen(false);
+      setEditingRecord(null);
+      setForm(emptyStudentForm);
+      void loadStudents(false);
+    } catch(error) {
+      setFormError(studentErrorMessage(error,'Could not save this student record.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const handleDelete=async(record:StudentRecord)=>{
+    const name=`${record.firstName} ${record.lastName}`;
+    if(!window.confirm(`Permanently delete ${name} (${record.studentNumber})? Records with linked academic or support history cannot be deleted.`))return;
+    setDeletingId(record.id);
+    setLoadError('');
+    try {
+      await deleteStudent(record.id,{credentials:'include'});
+      setRecords(current=>current.filter(item=>item.id!==record.id));
+      void loadStudents(false);
+    } catch(error) {
+      setLoadError(studentErrorMessage(error,'Could not delete this student record.'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return <main className="page">
+    <PageHead eyebrow="Student support workspace" title="Student records" subtitle="Add, review, update, and remove records stored in the development PostgreSQL database." actions={<><button className="btn" onClick={()=>void loadStudents()} disabled={loading}>Refresh</button><button className="btn btn-primary" onClick={openCreate}><Plus/> Add student</button></>}/>
+    <div className="notice" style={{marginBottom:16}}><ShieldCheck/><span>These records are available only to signed-in RADAR support staff and are saved in PostgreSQL. Other dashboard and report views still use fictional demo examples.</span></div>
+    {loadError&&<div className="notice" role="alert" style={{marginBottom:16}}><AlertCircle/><span>{loadError}</span></div>}
+    <section className="card table-card">
+      <div className="table-toolbar">
+        <div className="table-tools">
+          <label className="searchbox"><Search size={15}/><input aria-label="Search student records" placeholder="Search name, number, email, programme…" value={query} onChange={event=>setQuery(event.target.value)}/></label>
+          <select className="select" aria-label="Filter by faculty" value={faculty} onChange={event=>setFaculty(event.target.value)}><option value="All">All faculties</option>{facultyNames.map(name=><option key={name}>{name}</option>)}</select>
+        </div>
+        <span style={{fontSize:10,color:'#809097'}}>{filtered.length} {filtered.length===1?'record':'records'}</span>
+      </div>
+      {loading?<div className="table-empty" role="status">Loading student records…</div>:filtered.length===0?
+        <div className="table-empty">{records.length===0?(loadError?'Student records could not be loaded. Try refreshing the page.':'No student records yet. Add a record to get started.'):'No student records match your search or faculty filter.'}</div>:
+        <div className="student-record-table-wrap"><table className="data-table"><thead><tr><th>Student number</th><th>Name</th><th>Programme / faculty</th><th>Email</th><th>Age</th><th>Actions</th></tr></thead><tbody>
+          {filtered.map(record=><tr key={record.id}>
+            <td className="student-id">{record.studentNumber}</td>
+            <td><span className="student-name">{record.firstName} {record.lastName}</span></td>
+            <td>{record.programme||'—'}<div className="student-id">{record.faculty||'No faculty'}</div></td>
+            <td>{record.email||'—'}</td>
+            <td>{record.age??'—'}</td>
+            <td><div className="student-actions"><button type="button" className="btn" aria-label={`Edit ${record.studentNumber}`} onClick={()=>openEdit(record)}>Edit</button><button type="button" className="btn btn-danger" aria-label={`Delete ${record.studentNumber}`} disabled={deletingId===record.id} onClick={()=>void handleDelete(record)}>{deletingId===record.id?'Deleting…':'Delete'}</button></div></td>
+          </tr>)}
+        </tbody></table></div>}
+    </section>
+    {editorOpen&&<div className="modal-backdrop" role="presentation" onClick={event=>{if(event.target===event.currentTarget)closeEditor();}}>
+      <form className="modal student-editor" role="dialog" aria-modal="true" aria-labelledby="student-editor-title" onSubmit={event=>void handleSave(event)}>
+        <h2 id="student-editor-title">{editingRecord?'Edit student record':'Add student record'}</h2>
+        <div className="modal-sub">Saved directly to PostgreSQL. Required fields are marked.</div>
+        {formError&&<div className="notice" role="alert"><AlertCircle/><span>{formError}</span></div>}
+        <div className="form-grid">
+          <div className="field"><label htmlFor="student-number">Student number *</label><input id="student-number" required maxLength={50} value={form.studentNumber} onChange={event=>setForm({...form,studentNumber:event.target.value})}/></div>
+          <div className="field"><label htmlFor="student-age">Age</label><input id="student-age" type="number" min={0} max={130} step={1} value={form.age} onChange={event=>setForm({...form,age:event.target.value})}/></div>
+          <div className="field"><label htmlFor="student-first-name">First name *</label><input id="student-first-name" required maxLength={100} value={form.firstName} onChange={event=>setForm({...form,firstName:event.target.value})}/></div>
+          <div className="field"><label htmlFor="student-last-name">Last name *</label><input id="student-last-name" required maxLength={100} value={form.lastName} onChange={event=>setForm({...form,lastName:event.target.value})}/></div>
+          <div className="field form-full"><label htmlFor="student-email">Email</label><input id="student-email" type="email" maxLength={255} value={form.email} onChange={event=>setForm({...form,email:event.target.value})}/></div>
+          <div className="field"><label htmlFor="student-faculty">Faculty</label><input id="student-faculty" maxLength={150} value={form.faculty} onChange={event=>setForm({...form,faculty:event.target.value})}/></div>
+          <div className="field"><label htmlFor="student-programme">Programme</label><input id="student-programme" maxLength={150} value={form.programme} onChange={event=>setForm({...form,programme:event.target.value})}/></div>
+        </div>
+        <div className="form-actions"><button type="button" className="btn" onClick={closeEditor} disabled={saving}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving?'Saving…':editingRecord?'Save changes':'Create student'}</button></div>
+      </form>
+    </div>}
   </main>;
 }
 function StudentProfile({id}:{id:string}) {
@@ -240,8 +407,8 @@ function SettingsPage({notify}:{notify:(s:string)=>void}) {
       <SupportTeamInvitations/>
       <section className="card"><div className="card-head"><div><h2 className="card-title">Prototype data</h2><div className="card-kicker">Fictional sample data and local browser state</div></div><ShieldCheck size={16} color="#729397"/></div><div className="list-simple"><div className="list-entry"><div><div className="entry-title">Student cohort</div><div className="entry-sub">16 fixed sample records · read-only</div></div><span className="tag">Demo</span></div><div className="list-entry"><div><div className="entry-title">Intervention history</div><div className="entry-sub">{getStoredInterventions().length} actions stored in this browser</div></div><button className="btn" onClick={clear}>Clear local history</button></div></div></section>
     </div><div className="section-stack">
-      <section className="card"><div className="card-head"><h2 className="card-title">System information</h2><Settings size={16} color="#729397"/></div><div className="detail-list" style={{gridTemplateColumns:'1fr'}}>{[['Workspace','RADAR prototype preview'],['Authentication','Clerk-managed staff sign-in'],['Support access','Invitation-only; verified by the API'],['Data connection','None'],['Model status','No live model'],['Version','Demo · 0.2']].map(([a,b])=><div className="detail-item" key={a}><label>{a}</label><div>{b}</div></div>)}</div></section>
-      <section className="card"><div className="card-head"><h2 className="card-title">Responsible use</h2><CircleHelp size={16} color="#729397"/></div><div className="card-content"><div className="note-box">This prototype authenticates staff and checks roles for its API, but the student examples are fixed fictional data bundled with the frontend. Do not add real student records until they are served from protected APIs with server-side access checks, institutional approval, and privacy review.</div></div></section>
+      <section className="card"><div className="card-head"><h2 className="card-title">System information</h2><Settings size={16} color="#729397"/></div><div className="detail-list" style={{gridTemplateColumns:'1fr'}}>{[['Workspace','RADAR prototype preview'],['Authentication','Clerk-managed staff sign-in'],['Support access','Invitation-only; verified by the API'],['Data connection','Development PostgreSQL for student records'],['Model status','No live model'],['Version','Demo · 0.3']].map(([a,b])=><div className="detail-item" key={a}><label>{a}</label><div>{b}</div></div>)}</div></section>
+      <section className="card"><div className="card-head"><h2 className="card-title">Responsible use</h2><CircleHelp size={16} color="#729397"/></div><div className="card-content"><div className="note-box">The student-records page saves to PostgreSQL behind server-side support-role checks. Other dashboard, risk, report, and intervention views still use fictional examples or browser-local data. Do not enter real institutional data until the institution has approved its use and completed a privacy and security review.</div></div></section>
     </div></div>
   </main>;
 }
