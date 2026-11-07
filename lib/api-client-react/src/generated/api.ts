@@ -26,10 +26,13 @@ import type {
 
 import type {
   CreateRadarInvitation,
+  ErrorResponse,
   HealthError,
   HealthStatus,
   RadarAccess,
   RadarInvitation,
+  StudentImportResult,
+  StudentImportValidationError,
   StudentInput,
   StudentRecord,
   StudentUpdate
@@ -351,6 +354,94 @@ export const useCreateStudent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateStudentMutationOptions(options), queryClient);
+    }
+
+export const getImportStudentsUrl = () => {
+
+
+
+
+  return `/api/students/import`
+}
+
+/**
+ * @summary Validate, preprocess, and import student CSV data
+ */
+export const importStudents = async (importStudentsBody: string, options?: Parameters<typeof customFetch>[1]): Promise<StudentImportResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StudentImportResult>(getImportStudentsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv', ...getHeaders(options?.headers) },
+    body: JSON.stringify(importStudentsBody)
+  }
+);}
+
+
+
+
+
+export const getImportStudentsMutationKey = () => ['importStudents'] as const;
+
+export const getImportStudentsMutationOptions = <TError = ErrorType<ErrorResponse | void | StudentImportValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importStudents>>, TError,ImportStudentsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importStudents>>, TError,ImportStudentsMutationVariables, TContext> => {
+
+const mutationKey = getImportStudentsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importStudents>>, ImportStudentsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  importStudents(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportStudentsMutationResult = NonNullable<Awaited<ReturnType<typeof importStudents>>>
+    export type ImportStudentsMutationBody = BodyType<string>
+    export type ImportStudentsMutationError = ErrorType<ErrorResponse | void | StudentImportValidationError>
+    export type ImportStudentsMutationVariables = {data: BodyType<string>}
+
+    /**
+ * @summary Validate, preprocess, and import student CSV data
+ */
+export const useImportStudents = <TError = ErrorType<ErrorResponse | void | StudentImportValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importStudents>>, TError,ImportStudentsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof importStudents>>,
+        TError,
+        ImportStudentsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getImportStudentsMutationOptions(options), queryClient);
     }
 
 export const getGetStudentUrl = (studentId: number,) => {

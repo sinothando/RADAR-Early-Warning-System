@@ -77,6 +77,46 @@ paths:
           description: Support team access is required
         "409":
           description: Student number already exists
+  /students/import:
+    post:
+      operationId: importStudents
+      tags: [students]
+      summary: Validate, preprocess, and import student CSV data
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Validated student data imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentImportResult"
+        "400":
+          description: CSV file is missing or malformed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Sign-in is required
+        "403":
+          description: Support team access is required
+        "413":
+          description: CSV file exceeds the upload limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: CSV columns or rows do not pass validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentImportValidationError"
   /students/{studentId}:
     parameters:
       - name: studentId
@@ -326,6 +366,89 @@ components:
         error:
           type: string
       required: [error]
+    StudentImportResult:
+      type: object
+      properties:
+        rowsReceived:
+          type: integer
+        importedStudents:
+          type: integer
+        duplicateRowsRemoved:
+          type: integer
+        existingStudentsSkipped:
+          type: integer
+        missingValues:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentMissingValueCount"
+        featureColumns:
+          type: array
+          items:
+            type: string
+        preparedFeatureRows:
+          type: integer
+        imputedFeatures:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentFeatureImputation"
+      required:
+        - rowsReceived
+        - importedStudents
+        - duplicateRowsRemoved
+        - existingStudentsSkipped
+        - missingValues
+        - featureColumns
+        - preparedFeatureRows
+        - imputedFeatures
+    StudentImportValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        rowsReceived:
+          type: integer
+        duplicateRowsRemoved:
+          type: integer
+        missingValues:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentMissingValueCount"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentImportIssue"
+      required: [error, rowsReceived, duplicateRowsRemoved, missingValues, issues]
+    StudentImportIssue:
+      type: object
+      properties:
+        row:
+          type: integer
+          minimum: 1
+        column:
+          type: string
+        message:
+          type: string
+      required: [row, column, message]
+    StudentMissingValueCount:
+      type: object
+      properties:
+        column:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+      required: [column, count]
+    StudentFeatureImputation:
+      type: object
+      properties:
+        column:
+          type: string
+        missingCount:
+          type: integer
+          minimum: 0
+        imputationValue:
+          type: number
+      required: [column, missingCount, imputationValue]
     CreateRadarInvitation:
       type: object
       properties:

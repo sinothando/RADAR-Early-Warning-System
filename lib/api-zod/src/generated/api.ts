@@ -79,6 +79,34 @@ export const CreateStudentResponse = zod.object({
 
 
 /**
+ * @summary Validate, preprocess, and import student CSV data
+ */
+export const importStudentsResponseMissingValuesItemCountMin = 0;
+
+export const importStudentsResponseImputedFeaturesItemMissingCountMin = 0;
+
+
+
+export const ImportStudentsResponse = zod.object({
+  "rowsReceived": zod.number().int(),
+  "importedStudents": zod.number().int(),
+  "duplicateRowsRemoved": zod.number().int(),
+  "existingStudentsSkipped": zod.number().int(),
+  "missingValues": zod.array(zod.object({
+  "column": zod.string(),
+  "count": zod.number().int().min(importStudentsResponseMissingValuesItemCountMin)
+})),
+  "featureColumns": zod.array(zod.string()),
+  "preparedFeatureRows": zod.number().int(),
+  "imputedFeatures": zod.array(zod.object({
+  "column": zod.string(),
+  "missingCount": zod.number().int().min(importStudentsResponseImputedFeaturesItemMissingCountMin),
+  "imputationValue": zod.number()
+}))
+})
+
+
+/**
  * @summary Get one student record
  */
 

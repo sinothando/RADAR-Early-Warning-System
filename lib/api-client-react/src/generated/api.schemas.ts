@@ -142,6 +142,45 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface StudentMissingValueCount {
+  column: string;
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface StudentFeatureImputation {
+  column: string;
+  /** @minimum 0 */
+  missingCount: number;
+  imputationValue: number;
+}
+
+export interface StudentImportResult {
+  rowsReceived: number;
+  importedStudents: number;
+  duplicateRowsRemoved: number;
+  existingStudentsSkipped: number;
+  missingValues: StudentMissingValueCount[];
+  featureColumns: string[];
+  preparedFeatureRows: number;
+  imputedFeatures: StudentFeatureImputation[];
+}
+
+export interface StudentImportIssue {
+  /** @minimum 1 */
+  row: number;
+  column: string;
+  message: string;
+}
+
+export interface StudentImportValidationError {
+  error: string;
+  rowsReceived: number;
+  duplicateRowsRemoved: number;
+  missingValues: StudentMissingValueCount[];
+  issues: StudentImportIssue[];
+}
+
 export interface CreateRadarInvitation {
   email: string;
 }
